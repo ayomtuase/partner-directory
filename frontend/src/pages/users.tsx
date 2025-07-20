@@ -171,44 +171,51 @@ export function Users() {
       </div>
 
       <div className="rounded-md border overflow-x-auto">
-        <div className="grid grid-cols-12 gap-4 p-4 bg-muted/50 border-b">
-          <div className="col-span-4 font-medium">Email</div>
-          <div className="col-span-2 font-medium">Role</div>
-          <div className="col-span-4 font-medium">Partner</div>
-          <div className="col-span-2 text-right font-medium">Actions</div>
-        </div>
-        {filteredUsers?.map((user: User) => (
-          <div
-            key={user.id}
-            className="grid grid-cols-12 gap-4 p-4 items-center border-b hover:bg-muted/50"
-          >
-            <div className="col-span-4 font-medium">{user.email}</div>
-            <div className="col-span-2">
-              <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                {user.role}
-              </span>
-            </div>
-            <div className="col-span-4 text-sm text-muted-foreground">
-              {/* {user.partner?.name || "No partner assigned"} */}
-            </div>
-            <div className="col-span-2 flex justify-end space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEdit(user)}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => handleDelete(user.id)}
-              >
-                {isDeleting ? "Deleting..." : "Delete"}
-              </Button>
-            </div>
-          </div>
-        ))}
+        <table className="w-full">
+          <thead>
+            <tr className="text-left bg-muted/50">
+              <th className="p-4 font-medium w-2/6">Email</th>
+              <th className="p-4 font-medium w-1/6">Role</th>
+              <th className="p-4 font-medium w-1/3">Partner</th>
+              <th className="p-4 font-medium text-right w-1/6">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers?.map((user: User) => (
+              <tr key={user.id} className="border-b hover:bg-muted/50">
+                <td className="p-4 font-medium min-w-[300px]">
+                  {user.email}
+                </td>
+                <td className="p-4">
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                    {user.role}
+                  </span>
+                </td>
+                <td className="p-4 text-sm text-muted-foreground">
+                  {/* {user.partner?.name || "No partner assigned"} */}
+                </td>
+                <td className="p-4 text-right">
+                  <div className="flex justify-end space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(user)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(user.id)}
+                    >
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Create User Dialog */}
