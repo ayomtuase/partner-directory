@@ -4,6 +4,8 @@ export interface User {
   id: number;
   email: string;
   role: Role;
+  first_name?: string | null;
+  last_name?: string | null;
   partner_id?: number | null;
 }
 

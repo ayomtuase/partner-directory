@@ -14,11 +14,27 @@ export const useUser = (userId: number | null) => {
 };
 
 export const useCreateUser = () => {
-  return useApiMutation<User, Error>(API_BASE, "POST");
+  return useApiMutation(API_BASE, "POST");
 };
 
-export const useUpdateUser = (userId: number) => {
-  return useApiMutation<User, Error>(`${API_BASE}/${userId}`, "PUT");
+const updateUser = async (
+  url: MutationKey,
+  { arg: { userId, user } }: { arg: { userId: string | number; user: User } }
+) => {
+  if (!userId) {
+    return undefined;
+  }
+
+  const { data } = await api.request({
+    url: API_ENDPOINTS.SINGLE_USER(userId),
+    method: "PUT",
+    data: user,
+  });
+  return data;
+};
+
+export const useUpdateUser = () => {
+  return useApiMutation(API_ENDPOINTS.USERS, "PUT", updateUser);
 };
 
 const deleteUser = async (

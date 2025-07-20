@@ -1,16 +1,29 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useDeleteUser, useUsers } from "@/hooks/useUserHooks";
+import {
+  useCreateUser,
+  useDeleteUser,
+  useUpdateUser,
+  useUsers,
+} from "@/hooks/useUserHooks";
 import type { Role, User } from "@/types";
 import { Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+type UpdateUserPayload = Partial<Omit<User, "id">> & {
+  id: number;
+  password?: string;
+};
+
 export function Users() {
   const { data, isLoading, mutate } = useUsers();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const { trigger: deleteUser, isMutating: isDeleting } = useDeleteUser();
+  const { trigger: updateUser } = useUpdateUser();
+  const { trigger: createUser } = useCreateUser();
 
   const handleDelete = (userId: string | number) => {
     deleteUser(
@@ -28,15 +41,44 @@ export function Users() {
     );
   };
 
+  const handleEdit = (user: User) => {
+    setEditingUser(user);
+    setNewUser({
+      email: user.email,
+      password: "",
+      role: user.role,
+      first_name: user.first_name || "",
+      last_name: user.last_name || "",
+      partner_id: user.partner_id || undefined,
+    });
+    setIsCreateDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setIsCreateDialogOpen(false);
+    setEditingUser(null);
+    setNewUser({
+      email: "",
+      password: "",
+      role: "VIEWER",
+      first_name: "",
+      last_name: "",
+    });
+  };
+
   const [newUser, setNewUser] = useState<{
     email: string;
     password: string;
     role: Role;
+    first_name?: string;
+    last_name?: string;
     partner_id?: number;
   }>({
     email: "",
     password: "",
     role: "VIEWER",
+    first_name: "",
+    last_name: "",
   });
 
   const filteredUsers = data?.filter(
@@ -45,14 +87,55 @@ export function Users() {
       user.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreateUser = () => {
-    console.log("Creating user:", newUser);
-    setNewUser({
-      email: "",
-      password: "",
-      role: "VIEWER",
-    });
-    setIsCreateDialogOpen(false);
+  const handleSaveUser = async () => {
+    try {
+      if (editingUser) {
+        const updatePayload: UpdateUserPayload = {
+          id: editingUser.id,
+          email: newUser.email,
+          role: newUser.role,
+          partner_id: newUser.partner_id || null,
+        };
+
+        if (newUser.password) {
+          updatePayload.password = newUser.password;
+        }
+
+        updateUser(
+          {
+            userId: editingUser.id,
+            user: updatePayload as User,
+          },
+          {
+            onSuccess: () => {
+              toast.success("User updated successfully");
+              mutate();
+            },
+            onError: (error) => {
+              console.error("Failed to update user:", error);
+              toast.error("Failed to update user");
+            },
+          }
+        );
+      } else {
+        console.log("Creating user:", newUser);
+        createUser(newUser, {
+          onSuccess: () => {
+            toast.success("User created successfully");
+            mutate();
+          },
+          onError: (error) => {
+            console.error("Failed to create user:", error);
+            toast.error("Failed to create user");
+          },
+        });
+      }
+
+      handleDialogClose();
+    } catch (error) {
+      console.error("Operation failed:", error);
+      toast.error(`Failed to ${editingUser ? "update" : "create"} user`);
+    }
   };
 
   if (isLoading) {
@@ -81,6 +164,7 @@ export function Users() {
             placeholder="Search users..."
             className="pl-8 w-full"
             value={searchTerm}
+            autoComplete="off"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
@@ -105,10 +189,14 @@ export function Users() {
               </span>
             </div>
             <div className="col-span-4 text-sm text-muted-foreground">
-              {user.partner?.name || "No partner assigned"}
+              {/* {user.partner?.name || "No partner assigned"} */}
             </div>
             <div className="col-span-2 flex justify-end space-x-2">
-              <Button variant="outline" size="sm">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEdit(user)}
+              >
                 Edit
               </Button>
               <Button
@@ -127,8 +215,38 @@ export function Users() {
       {isCreateDialogOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-background p-6 rounded-lg w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Add New User</h3>
+            <h3 className="text-lg font-semibold mb-4">
+              {editingUser ? "Edit User" : "Add New User"}
+            </h3>
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    First Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={newUser.first_name}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, first_name: e.target.value })
+                    }
+                    placeholder="Enter first name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Last Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={newUser.last_name}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, last_name: e.target.value })
+                    }
+                    placeholder="Enter last name"
+                  />
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Email Address *
@@ -144,7 +262,7 @@ export function Users() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  Password *
+                  Password
                 </label>
                 <Input
                   type="password"
@@ -152,11 +270,15 @@ export function Users() {
                   onChange={(e) =>
                     setNewUser({ ...newUser, password: e.target.value })
                   }
-                  placeholder="Enter password"
+                  placeholder={
+                    editingUser
+                      ? "Leave blank to keep current password"
+                      : "Enter password"
+                  }
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Role *</label>
+                <label className="block text-sm font-medium mb-1">Role</label>
                 <select
                   value={newUser.role}
                   onChange={(e) =>
@@ -164,9 +286,9 @@ export function Users() {
                   }
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="admin">Admin</option>
-                  <option value="manager">Manager</option>
-                  <option value="viewer">Viewer</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="MANAGER">Manager</option>
+                  <option value="VIEWER">Viewer</option>
                 </select>
               </div>
               <div>
@@ -190,13 +312,12 @@ export function Users() {
                 </select>
               </div>
               <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsCreateDialogOpen(false)}
-                >
+                <Button variant="outline" onClick={handleDialogClose}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateUser}>Create User</Button>
+                <Button onClick={handleSaveUser}>
+                  {editingUser ? "Update User" : "Create User"}
+                </Button>
               </div>
             </div>
           </div>
