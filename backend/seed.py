@@ -6,7 +6,6 @@ from database.models import Partner, PartnerGroup, Role, User
 from werkzeug.security import generate_password_hash
 
 
-# Create Flask app
 def seed_database():
     with app.app_context():
         # Clear existing data
@@ -16,7 +15,6 @@ def seed_database():
         db.session.query(PartnerGroup).delete()
         db.session.commit()
 
-        # Create Partner Groups
         print("Creating partner groups...")
         group_names = [
             "Technology Partners",
@@ -31,7 +29,6 @@ def seed_database():
             groups.append(group)
         db.session.commit()
 
-        # Create Partners
         print("Creating partners...")
         partner_data = [
             {
@@ -75,7 +72,6 @@ def seed_database():
             partners.append(partner)
         db.session.commit()
 
-        # Create Users
         print("Creating users...")
         user_data = [
             {
@@ -127,13 +123,11 @@ def seed_database():
                     else None
                 ),
             )
-            # Set default password for all users (in production, use secure random passwords)
             user.set_password("password123")
             db.session.add(user)
 
-        # Create additional users for each partner
         for partner in partners:
-            for i in range(1, 4):  # 3 users per partner
+            for i in range(1, 4):
                 user = User(
                     first_name=f"User{i}",
                     last_name=partner.name.split()[0],
