@@ -21,100 +21,88 @@ class UserSchema(SQLAlchemyAutoSchema):
         include_fk = True
         exclude = ('password_hash',)
 
-class UserBaseSchema(Schema):
-    email = fields.Email(
-        required=False,
-        error_messages={
-            "invalid": "Please provide a valid email address",
-            "null": "Email cannot be blank!"
-        }
-    )
-    password = fields.String(
-        required=False,
-        validate=validate.Length(
-            min=6,
-            error="Password must be at least 6 characters"
-        ) if None else None
-    )
-    role = fields.String(
-        required=False,
-        validate=validate.OneOf(
-            [role.value for role in Role],
-            error="Invalid role. Must be one of: {choices}"
-        ) if None else None
-    )
-    first_name = fields.String(
-        required=False,
-        validate=validate.Length(
-            min=1,
-            error="First name cannot be blank"
-        ) if None else None
-    )
-    last_name = fields.String(
-        required=False,
-        validate=validate.Length(
-            min=1,
-            error="Last name cannot be blank"
-        ) if None else None
-    )
+def create_field(field_type, required=False, **kwargs):
+    """Helper function to create field with common configurations."""
+    common_error_messages = {
+        "required": f"{field_type.__name__.replace('Field', '').title()} is required",
+        "null": f"{field_type.__name__.replace('Field', '').title()} cannot be blank!"
+    }
+    
+    field_args = {
+        'required': required,
+        'error_messages': {
+            **common_error_messages,
+            **kwargs.pop('error_messages', {})
+        },
+        **kwargs
+    }
+    
+    if not required:
+        field_args['allow_none'] = True
+        field_args['load_default'] = None
+    
+    return field_type(**field_args)
 
-class UserCreateSchema(UserBaseSchema):
+class UserBaseSchema(Schema):
+    """Base schema with common field definitions and validation logic."""
+    
+    # Common field configurations
     email = fields.Email(
-        required=True,
+        required=False,
         error_messages={
-            "required": "Email is required",
-            "invalid": "Please provide a valid email address",
-            "null": "Email cannot be blank!"
-        }
+            "invalid": "Please provide a valid email address"
+        },
+        allow_none=True
     )
     password = fields.String(
-        required=True,
-        error_messages={
-            "required": "Password is required",
-            "null": "Password cannot be blank!"
-        },
-        validate=validate.Length(min=6, error="Password must be at least 6 characters")
+        required=False,
+        validate=validate.Length(min=6, error="Password must be at least 6 characters"),
+        allow_none=True
     )
     role = fields.String(
-        required=True,
-        error_messages={
-            "required": "Role is required",
-            "null": "Role cannot be blank!"
-        },
+        required=False,
         validate=validate.OneOf(
             [role.value for role in Role],
             error="Invalid role. Must be one of: {choices}"
-        )
+        ),
+        allow_none=True
     )
     first_name = fields.String(
-        required=True,
-        error_messages={
-            "required": "First name is required",
-            "null": "First name cannot be blank!"
-        },
-        validate=validate.Length(min=1, error="First name cannot be blank")
+        required=False,
+        validate=validate.Length(min=1, error="First name cannot be blank"),
+        allow_none=True
     )
     last_name = fields.String(
-        required=True,
-        error_messages={
-            "required": "Last name is required",
-            "null": "Last name cannot be blank!"
-        },
-        validate=validate.Length(min=1, error="Last name cannot be blank")
+        required=False,
+        validate=validate.Length(min=1, error="Last name cannot be blank"),
+        allow_none=True
     )
 
     @validates('email')
     def validate_email(self, value):
-        if value is not None:
-            if not value.strip():
-                raise ValidationError("Email cannot be blank!")
+        if value is not None and value.strip():
             if User.query.filter(User.email == value, User.id != self.context.get('user_id')).first():
                 raise ValidationError('Email already exists')
+        elif value is not None:  # Empty string after strip()
+            raise ValidationError("Email cannot be blank!")
+
+    def _process_role(self, result):
+        if 'role' in result and result['role'] is not None:
+            try:
+                result['role'] = Role(result['role'])
+            except ValueError:
+                raise ValidationError({
+                    'role': [f"Invalid role. Must be one of: {[r.value for r in Role]}"]
+                })
+        return result
 
     def load_data(self, data, partial=False):
         try:
-            if not partial and isinstance(self, UserCreateSchema):
-                missing_fields = [field for field in self.fields if field not in data or data[field] is None]
+            if not partial and hasattr(self, '_required_fields'):
+                missing_fields = [
+                    field for field in self._required_fields 
+                    if field not in data or data[field] is None
+                ]
                 if missing_fields:
                     raise ValidationError({
                         field: ["Missing data for required field."]
@@ -122,18 +110,43 @@ class UserCreateSchema(UserBaseSchema):
                     })
 
             result = self.load(data, partial=partial)
-
-            if 'role' in result and result['role'] is not None:
-                try:
-                    result['role'] = Role(result['role'])
-                except ValueError:
-                    raise ValidationError({
-                        'role': [f"Invalid role. Must be one of: {[r.value for r in Role]}"]
-                    })
-
-            return result
+            return self._process_role(result)
 
         except ValidationError as e:
             raise e
         except Exception as e:
             raise ValidationError(str(e))
+
+
+class UserCreateSchema(UserBaseSchema):
+    """Schema for creating new users with all required fields."""
+    _required_fields = ['email', 'password', 'role', 'first_name', 'last_name']
+    
+    email = fields.Email(
+        required=True,
+        error_messages={"invalid": "Please provide a valid email address"}
+    )
+    password = fields.String(
+        required=True,
+        validate=validate.Length(min=6, error="Password must be at least 6 characters")
+    )
+    role = fields.String(
+        required=True,
+        validate=validate.OneOf(
+            [role.value for role in Role],
+            error="Invalid role. Must be one of: {choices}"
+        )
+    )
+    first_name = fields.String(
+        required=True,
+        validate=validate.Length(min=1, error="First name cannot be blank")
+    )
+    last_name = fields.String(
+        required=True,
+        validate=validate.Length(min=1, error="Last name cannot be blank")
+    )
+
+
+class UserUpdateSchema(UserBaseSchema):
+    """Schema for updating user information. All fields are optional."""
+    pass
